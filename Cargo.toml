@@ -1,0 +1,20 @@
+[package]
+name = "bitcoin-constants"
+version = "0.1.0"
+authors = ["The rust-bitcoin developers"]
+repository = "https://github.com/rust-bitcoin/bitcoin-constants"
+description = "Contains network constants for bitcoin and similiar crypto currencies"
+readme = "README.md"
+keywords = ["bitcoin", "constants", "blockchain"]
+categories = []
+license = "MIT"
+
+[features]
+default = ["serde-support"]
+serde-support = ["serde"]
+
+[dependencies]
+serde = { version = "0.6", optional = true }
+
+[dev-dependencies]
+serde_json = "0.6"

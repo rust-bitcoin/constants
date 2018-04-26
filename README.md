@@ -1,2 +1,2 @@
 # bitcoin-constants
-Constants used across Bitcoin libraries
+This library provides various constants for different bitcoin-like cryptocurrency networks.
