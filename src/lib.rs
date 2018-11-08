@@ -40,12 +40,15 @@
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
 
+extern crate bitcoin_hashes;
+
 #[cfg(feature = "serde-support")]
 extern crate serde;
 
 #[cfg(all(feature = "serde-support", test))]
 extern crate serde_json;
 
+use bitcoin_hashes::sha256d::Sha256dHash;
 use std::fmt;
 
 /// Provides network constants for one or more possible p2p networks. This trait is intended to be
@@ -95,6 +98,9 @@ pub trait NetworkConstants : Sized {
 
     /// Returns parameters for the chain's consensus
     fn chain_params(&self) -> ChainParams<Self>;
+
+    /// Returns the hash of the genesis block
+    fn genesis_block(&self) -> Sha256dHash;
 }
 
 /// Errors that can happen in the `from_` functions
@@ -334,6 +340,26 @@ impl NetworkConstants for Networks {
                 allow_min_difficulty_blocks: true,
                 no_pow_retargeting: true,
             },
+            _ => unimplemented!(),
+        }
+    }
+
+    fn genesis_block(&self) -> Sha256dHash {
+        use bitcoin_hashes::hex::FromHex;
+
+        match *self {
+            Networks::Bitcoin => Sha256dHash::from_hex(
+                "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+            ).unwrap(),
+
+            Networks::Testnet => Sha256dHash::from_hex(
+                "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
+            ).unwrap(),
+
+            Networks::Regtest => Sha256dHash::from_hex(
+                "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+            ).unwrap(),
+
             _ => unimplemented!(),
         }
     }
