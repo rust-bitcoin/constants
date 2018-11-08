@@ -81,6 +81,15 @@ pub trait NetworkConstants : Sized {
     /// Tries to find a network with maching hrp
     fn from_hrp(hrp: &str) -> Result<Self, Error>;
 
+    /// Returns the prefix byte for legacy p2pk addresses
+    fn p2pk_prefix(&self) -> u8;
+
+    /// Returns the prefix byte for legacy p2pkh addresses
+    fn p2pkh_prefix(&self) -> u8;
+
+    /// Returns the prefix byte for legacy p2sh addresses
+    fn p2sh_prefix(&self) -> u8;
+
     /// Returns the network's magic bytes
     fn magic(&self) -> u32;
 
@@ -229,6 +238,26 @@ impl NetworkConstants for Networks {
 
     fn from_hrp(hrp: &str) -> Result<Networks, Error> {
         Networks::find_net_with_property(|n| n.hrp() == hrp)
+    }
+
+    fn p2pk_prefix(&self) -> u8 {
+        match *self {
+            Networks::Bitcoin => 0,
+            Networks::Testnet | Networks::Regtest => 111,
+            _ => unimplemented!(),
+        }
+    }
+
+    fn p2pkh_prefix(&self) -> u8 {
+        self.p2pk_prefix()
+    }
+
+    fn p2sh_prefix(&self) -> u8 {
+        match *self {
+            Networks::Bitcoin => 5,
+            Networks::Testnet | Networks::Regtest => 196,
+            _ => unimplemented!(),
+        }
     }
 
     fn magic(&self) -> u32 {
