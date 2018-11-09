@@ -174,6 +174,30 @@ pub struct ChainParams<N: NetworkConstants> {
     pub no_pow_retargeting: bool,
 }
 
+impl<N: NetworkConstants + Copy> ChainParams<N> {
+    /// ChainParams contain the network they belong to. This function applies a mapping to this
+    /// network field so that it is possible to convert a `ChainParams<N1>` to a `ChainParams<N2>`
+    /// if both `N1` and `N2` have a representation for the given network.
+    pub fn map_network<NN>(&self, mapping: &(Fn(N) -> Result<NN, Error>)) -> Result<ChainParams<NN>, Error>
+        where NN: NetworkConstants
+    {
+        Ok(ChainParams::<NN> {
+            network: mapping(self.network)?,
+            bip16_time: self.bip16_time,
+            bip34_height: self.bip34_height,
+            bip65_height: self.bip65_height,
+            bip66_height: self.bip66_height,
+            rule_change_activation_threshold: self.rule_change_activation_threshold,
+            miner_confirmation_window: self.miner_confirmation_window,
+            pow_limit: self.pow_limit.clone(),
+            pow_target_spacing: self.pow_target_spacing,
+            pow_target_timespan: self.pow_target_timespan,
+            allow_min_difficulty_blocks: self.allow_min_difficulty_blocks,
+            no_pow_retargeting: self.no_pow_retargeting
+        })
+    }
+}
+
 /// The cryptocurrency to act on
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Networks {
@@ -210,6 +234,27 @@ pub const ALL_NETWORKS: &'static [Networks] = &[
     Networks::LitecoinTestnet,
     Networks::Vertcoin,
     Networks::VertcoinTestnet
+];
+
+/// All Bitcoin networks
+///
+/// All constants defined in `NetworkConstants` must be implemented for these networks. All panics
+/// when getting constants for these networks are considered bugs.
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub enum BitcoinNetworks {
+    /// Bitcoin mainnet
+    Bitcoin,
+    /// Bitcoin testnet
+    Testnet,
+    /// Bitcoin regtest
+    Regtest,
+}
+
+/// List of all networks represented in `BitcoinNetworks`
+pub const BITCOIN_NETWORKS: &'static [BitcoinNetworks] = &[
+    BitcoinNetworks::Bitcoin,
+    BitcoinNetworks::Testnet,
+    BitcoinNetworks::Regtest,
 ];
 
 impl Networks {
@@ -394,6 +439,80 @@ impl NetworkConstants for Networks {
     }
 }
 
+impl BitcoinNetworks {
+    /// Maps the `BitcoinNetwork` variant to a `Networks` variant
+    pub fn to_networks(&self) -> Networks {
+        match *self {
+            BitcoinNetworks::Bitcoin => Networks::Bitcoin,
+            BitcoinNetworks::Testnet => Networks::Testnet,
+            BitcoinNetworks::Regtest => Networks::Regtest,
+        }
+    }
+
+    /// Maps a `Networks` variant to a `BitcoinNetworks` variant if possible.
+    pub fn from_networks(n: Networks) -> Result<BitcoinNetworks, Error> {
+        match n {
+            Networks::Bitcoin => Ok(BitcoinNetworks::Bitcoin),
+            Networks::Testnet => Ok(BitcoinNetworks::Testnet),
+            Networks::Regtest => Ok(BitcoinNetworks::Regtest),
+            _ => Err(Error::UnknownNetwork),
+        }
+    }
+}
+
+impl NetworkConstants for BitcoinNetworks {
+    fn hrp(&self) -> &'static str {
+        self.to_networks().hrp()
+    }
+
+    fn from_hrp(hrp: &str) -> Result<Self, Error> {
+        Networks::from_hrp(hrp).and_then(Self::from_networks)
+    }
+
+    fn p2pk_prefix(&self) -> u8 {
+        self.to_networks().p2pk_prefix()
+    }
+
+    fn p2pkh_prefix(&self) -> u8 {
+        self.to_networks().p2pkh_prefix()
+    }
+
+    fn p2sh_prefix(&self) -> u8 {
+        self.to_networks().p2sh_prefix()
+    }
+
+    fn magic(&self) -> u32 {
+        self.to_networks().magic()
+    }
+
+    fn from_magic(magic: u32) -> Result<Self, Error> {
+        Networks::from_magic(magic).and_then(Self::from_networks)
+    }
+
+    fn name(&self) -> &'static str {
+        self.to_networks().name()
+    }
+
+    fn from_name(name: &str) -> Result<Self, Error> {
+        Networks::from_name(name).and_then(Self::from_networks)
+    }
+
+    fn network_type(&self) -> NetworkType {
+        self.to_networks().network_type()
+    }
+
+    fn chain_params(&self) -> ChainParams<Self> {
+        self.to_networks()
+            .chain_params()
+            .map_network(&Self::from_networks)
+            .expect("function can only be called for variants of BitcoinNetworks")
+    }
+
+    fn genesis_block(&self) -> Sha256dHash {
+        self.to_networks().genesis_block()
+    }
+}
+
 impl fmt::Debug for Networks {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "{}", self.name())
@@ -473,5 +592,29 @@ mod tests {
         assert!(enc.contains("litecoin-testnet"));
         assert!(enc.contains("vertcoin"));
         assert_eq!(::serde_json::from_str::<Vec<Networks>>(&enc).unwrap(), from);
+    }
+
+    #[test]
+    fn bitcoin_networks_dont_panic() {
+        use BitcoinNetworks;
+
+        for &n in ::BITCOIN_NETWORKS {
+            let hrp = n.hrp();
+            assert_eq!(n, BitcoinNetworks::from_hrp(hrp).unwrap());
+
+            let _ = n.p2pk_prefix();
+            let _ = n.p2pkh_prefix();
+            let _ = n.p2sh_prefix();
+
+            let magic = n.magic();
+            assert_eq!(n, BitcoinNetworks::from_magic(magic).unwrap());
+
+            let name = n.name();
+            assert_eq!(n, BitcoinNetworks::from_name(name).unwrap());
+
+            let _ = n.network_type();
+            let _ = n.chain_params();
+            let _ = n.genesis_block();
+        }
     }
 }
