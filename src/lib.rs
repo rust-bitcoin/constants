@@ -90,6 +90,12 @@ pub trait NetworkConstants : Sized {
     /// Returns the prefix byte for legacy p2sh addresses
     fn p2sh_prefix(&self) -> u8;
 
+    /// Returns the prefix bytes for encoding xpub keys
+    fn xpub_prefix(&self) -> &'static [u8; 4];
+
+    /// Returns the prefix bytes for encoding xpriv keys
+    fn xpriv_prefix(&self) -> &'static [u8; 4];
+
     /// Returns the network's magic bytes
     fn magic(&self) -> u32;
 
@@ -305,6 +311,22 @@ impl NetworkConstants for Networks {
         }
     }
 
+    fn xpub_prefix(&self) -> &'static [u8; 4] {
+        match *self {
+            Networks::Bitcoin => &[0x04u8, 0x88, 0xB2, 0x1E],
+            Networks::Testnet | Networks::Regtest => &[0x04u8, 0x35, 0x87, 0xCF],
+            _ => unimplemented!(),
+        }
+    }
+
+    fn xpriv_prefix(&self) -> &'static [u8; 4] {
+        match *self {
+            Networks::Bitcoin => &[0x04, 0x88, 0xAD, 0xE4],
+            Networks::Testnet | Networks::Regtest => &[0x04, 0x35, 0x83, 0x94],
+            _ => unimplemented!(),
+        }
+    }
+
     fn magic(&self) -> u32 {
         match *self {
             // https://github.com/bitcoin/bitcoin/blob/ce650182f4d9847423202789856e6e5f499151f8/src/chainparams.cpp#L115
@@ -481,6 +503,14 @@ impl NetworkConstants for BitcoinNetworks {
         self.to_networks().p2sh_prefix()
     }
 
+    fn xpub_prefix(&self) -> &'static [u8; 4] {
+        self.to_networks().xpub_prefix()
+    }
+
+    fn xpriv_prefix(&self) -> &'static [u8; 4] {
+        self.to_networks().xpriv_prefix()
+    }
+
     fn magic(&self) -> u32 {
         self.to_networks().magic()
     }
@@ -605,6 +635,8 @@ mod tests {
             let _ = n.p2pk_prefix();
             let _ = n.p2pkh_prefix();
             let _ = n.p2sh_prefix();
+            let _ = n.xpub_prefix();
+            let _ = n.xpriv_prefix();
 
             let magic = n.magic();
             assert_eq!(n, BitcoinNetworks::from_magic(magic).unwrap());
