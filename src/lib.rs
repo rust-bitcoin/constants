@@ -96,6 +96,9 @@ pub trait NetworkConstants : Sized {
     /// Returns the prefix bytes for encoding xpriv keys
     fn xpriv_prefix(&self) -> &'static [u8; 4];
 
+    /// Returns the prefix byte for encoding private keys as WIF
+    fn wif_prefix(&self) -> u8;
+
     /// Returns the network's magic bytes
     fn magic(&self) -> u32;
 
@@ -327,6 +330,14 @@ impl NetworkConstants for Networks {
         }
     }
 
+    fn wif_prefix(&self) -> u8 {
+        match *self {
+            Networks::Bitcoin => 128,
+            Networks::Testnet | Networks::Regtest => 239,
+            _ => unimplemented!(),
+        }
+    }
+
     fn magic(&self) -> u32 {
         match *self {
             // https://github.com/bitcoin/bitcoin/blob/ce650182f4d9847423202789856e6e5f499151f8/src/chainparams.cpp#L115
@@ -511,6 +522,10 @@ impl NetworkConstants for BitcoinNetworks {
         self.to_networks().xpriv_prefix()
     }
 
+    fn wif_prefix(&self) -> u8 {
+        self.to_networks().wif_prefix()
+    }
+
     fn magic(&self) -> u32 {
         self.to_networks().magic()
     }
@@ -637,6 +652,7 @@ mod tests {
             let _ = n.p2sh_prefix();
             let _ = n.xpub_prefix();
             let _ = n.xpriv_prefix();
+            let _ = n.wif_prefix();
 
             let magic = n.magic();
             assert_eq!(n, BitcoinNetworks::from_magic(magic).unwrap());
