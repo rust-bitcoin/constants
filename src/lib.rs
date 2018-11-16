@@ -42,44 +42,61 @@
 
 extern crate bitcoin_hashes;
 
-#[cfg(feature = "serde-support")]
-extern crate serde;
-
-#[cfg(all(feature = "serde-support", test))]
-extern crate serde_json;
-
 use bitcoin_hashes::sha256d::Sha256dHash;
-use std::fmt;
+use std::{fmt, ops};
 
-/// Provides network constants for one or more possible p2p networks. This trait is intended to be
-/// implemented for enums representing sub- or supersets of the networks included in `Networks`.
-/// When taking network-enums as arguments for functions please try to implement these generically
-/// for this trait, e.g.:
-///
-/// ```ignore
-/// use NetworkConstants;
-///
-/// fn new_address(network: &NetworkConstants) -> String {
-///     let bech32_prefix = network.hrp();
-///     // more bech32 magic
-///     unimplemented!()
-/// }
-///
-/// fn network_from_address<N: NetworkConstants>(bech32_addr: &str) -> Option<N> {
-///     // bech32 parsing magic
-///     let hrp = "bc";
-///     N::from_hrp(hrp).ok()
-/// }
-/// ```
-///
-/// If you feel the urge to do matching over an enum implementing `NetworkConstants` please
-/// consider opening a PR instead if your problem/solution can be generalized.
-pub trait NetworkConstants : Sized {
+pub mod networks;
+
+/// Represents a bitcoin-like network for which it can provide encoding , network and consensus
+/// constants.
+pub struct Network(Box<NetworkConstants>);
+
+impl Network {
+    /// Create a net `Network` object from a trait object that provides network constants
+    pub fn from_box(trait_obj: Box<NetworkConstants>) -> Network {
+        Network(trait_obj)
+    }
+
+    /// Creates a `Network` object representing the bitcoin mainnet
+    pub fn bitcoin() -> Network {
+        Self::from_box(networks::Bitcoin::new())
+    }
+
+    /// Creates a `Network` object representing the bitcoin testnet
+    pub fn bitcoin_testnet() -> Network {
+        Self::from_box(networks::BitcoinTestnet::new())
+    }
+
+    /// Creates a `Network` object representing the bitcoin regtest
+    pub fn bitcoin_regtest() -> Network {
+        Self::from_box(networks::BitcoinRegtest::new())
+    }
+}
+
+impl Clone for Network {
+    fn clone(&self) -> Self {
+        Self::from_box(self.0.clone_boxed())
+    }
+}
+
+impl ops::Deref for Network {
+    type Target = Box<NetworkConstants>;
+
+    fn deref(&self) -> &Box<NetworkConstants> {
+        &self.0
+    }
+}
+
+impl fmt::Debug for Network {
+    fn fmt(&self, f: & mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "Network{{name: '{}', ...}}", self.name())
+    }
+}
+
+/// Provides network constants for a bitcoin-like crypto currency
+pub trait NetworkConstants {
     /// Returns the Human-readable part for the given network
     fn hrp(&self) -> &'static str;
-
-    /// Tries to find a network with maching hrp
-    fn from_hrp(hrp: &str) -> Result<Self, Error>;
 
     /// Returns the prefix byte for legacy p2pk addresses
     fn p2pk_prefix(&self) -> u8;
@@ -102,30 +119,20 @@ pub trait NetworkConstants : Sized {
     /// Returns the network's magic bytes
     fn magic(&self) -> u32;
 
-    /// Tries to find a network with matching magic bytes
-    fn from_magic(magic: u32) -> Result<Self, Error>;
-
     /// Returns a string representation of the networks identity (a.k.a. name)
     fn name(&self) -> &'static str;
-
-    /// Tries to find a network with a matching name
-    fn from_name(name: &str) -> Result<Self, Error>;
 
     /// Describes the nature of the network (production/testing)
     fn network_type(&self) -> NetworkType;
 
     /// Returns parameters for the chain's consensus
-    fn chain_params(&self) -> ChainParams<Self>;
+    fn chain_params(&self) -> ChainParams;
 
     /// Returns the hash of the genesis block
     fn genesis_block(&self) -> Sha256dHash;
-}
 
-/// Errors that can happen in the `from_` functions
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum Error {
-    /// Not network with the specified properties (e.g. matching name) could be found.
-    UnknownNetwork,
+    /// Creates a boxed copy of `self`
+    fn clone_boxed(&self) -> Box<NetworkConstants>;
 }
 
 /// Describes the nature of the network
@@ -141,12 +148,9 @@ pub enum NetworkType {
     Regtest,
 }
 
-#[derive(Debug, Clone)]
 /// Parameters that influence chain consensus.
-pub struct ChainParams<N: NetworkConstants> {
-    /// Network for which parameters are valid.
-    pub network: N,
-
+#[derive(Debug, Clone)]
+pub struct ChainParams {
     /// Time when BIP16 becomes active.
     pub bip16_time: u32,
 
@@ -183,486 +187,18 @@ pub struct ChainParams<N: NetworkConstants> {
     pub no_pow_retargeting: bool,
 }
 
-impl<N: NetworkConstants + Copy> ChainParams<N> {
-    /// ChainParams contain the network they belong to. This function applies a mapping to this
-    /// network field so that it is possible to convert a `ChainParams<N1>` to a `ChainParams<N2>`
-    /// if both `N1` and `N2` have a representation for the given network.
-    pub fn map_network<NN>(&self, mapping: &(Fn(N) -> Result<NN, Error>)) -> Result<ChainParams<NN>, Error>
-        where NN: NetworkConstants
-    {
-        Ok(ChainParams::<NN> {
-            network: mapping(self.network)?,
-            bip16_time: self.bip16_time,
-            bip34_height: self.bip34_height,
-            bip65_height: self.bip65_height,
-            bip66_height: self.bip66_height,
-            rule_change_activation_threshold: self.rule_change_activation_threshold,
-            miner_confirmation_window: self.miner_confirmation_window,
-            pow_limit: self.pow_limit.clone(),
-            pow_target_spacing: self.pow_target_spacing,
-            pow_target_timespan: self.pow_target_timespan,
-            allow_min_difficulty_blocks: self.allow_min_difficulty_blocks,
-            no_pow_retargeting: self.no_pow_retargeting
-        })
-    }
-}
-
-/// The cryptocurrency to act on
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub enum Networks {
-    /// Bitcoin mainnet
-    Bitcoin,
-    /// Bitcoin testnet
-    Testnet,
-    /// Bitcoin regtest
-    Regtest,
-    /// Litecoin mainnet
-    Litecoin,
-    /// Litecoin testnet
-    LitecoinTestnet,
-    /// Vertcoin mainnet
-    Vertcoin,
-    /// Vertcoin testnet
-    VertcoinTestnet,
-
-    // if you add networks please also include them in the ALL_NETWORKS list
-}
-
-/// List of all networks included in this crate
-//
-// Given a list of all networks and any `network -> x` mapping, the inverse `x -> network` mapping
-// can be calculated. This might not be the most performant solution, but surely the easiest to
-// maintain. Since the match statements for the `network -> x` mapping have to be complete the
-// compiler will complain if one of the mappings was forgotten after adding a new currency which is
-// not possible for `x -> network` mappings.
-pub const ALL_NETWORKS: &'static [Networks] = &[
-    Networks::Bitcoin,
-    Networks::Testnet,
-    Networks::Regtest,
-    Networks::Litecoin,
-    Networks::LitecoinTestnet,
-    Networks::Vertcoin,
-    Networks::VertcoinTestnet
-];
-
-/// All Bitcoin networks
-///
-/// All constants defined in `NetworkConstants` must be implemented for these networks. All panics
-/// when getting constants for these networks are considered bugs.
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum BitcoinNetworks {
-    /// Bitcoin mainnet
-    Bitcoin,
-    /// Bitcoin testnet
-    Testnet,
-    /// Bitcoin regtest
-    Regtest,
-}
-
-/// List of all networks represented in `BitcoinNetworks`
-pub const BITCOIN_NETWORKS: &'static [BitcoinNetworks] = &[
-    BitcoinNetworks::Bitcoin,
-    BitcoinNetworks::Testnet,
-    BitcoinNetworks::Regtest,
-];
-
-impl Networks {
-    fn find_net_with_property<P>(predicate: P) -> Result<Networks, Error>
-        where for<'r> P: FnMut(&'r &Networks) -> bool
-    {
-        match ALL_NETWORKS.iter().find::<P>(predicate).map(|n| *n) {
-            Some(network) => Ok(network),
-            None => Err(Error::UnknownNetwork)
-        }
-    }
-}
-
-impl NetworkConstants for Networks {
-    fn hrp(&self) -> &'static str {
-        match *self {
-            Networks::Bitcoin => "bc",
-            Networks::Testnet => "tb",
-            Networks::Regtest => "bcrt",
-            Networks::Litecoin => "ltc",
-            Networks::LitecoinTestnet => "tltc",
-            Networks::Vertcoin => "vtc",
-            Networks::VertcoinTestnet => "tvtc",
-        }
-    }
-
-    fn from_hrp(hrp: &str) -> Result<Networks, Error> {
-        Networks::find_net_with_property(|n| n.hrp() == hrp)
-    }
-
-    fn p2pk_prefix(&self) -> u8 {
-        match *self {
-            Networks::Bitcoin => 0,
-            Networks::Testnet | Networks::Regtest => 111,
-            _ => unimplemented!(),
-        }
-    }
-
-    fn p2pkh_prefix(&self) -> u8 {
-        self.p2pk_prefix()
-    }
-
-    fn p2sh_prefix(&self) -> u8 {
-        match *self {
-            Networks::Bitcoin => 5,
-            Networks::Testnet | Networks::Regtest => 196,
-            _ => unimplemented!(),
-        }
-    }
-
-    fn xpub_prefix(&self) -> &'static [u8; 4] {
-        match *self {
-            Networks::Bitcoin => &[0x04u8, 0x88, 0xB2, 0x1E],
-            Networks::Testnet | Networks::Regtest => &[0x04u8, 0x35, 0x87, 0xCF],
-            _ => unimplemented!(),
-        }
-    }
-
-    fn xpriv_prefix(&self) -> &'static [u8; 4] {
-        match *self {
-            Networks::Bitcoin => &[0x04, 0x88, 0xAD, 0xE4],
-            Networks::Testnet | Networks::Regtest => &[0x04, 0x35, 0x83, 0x94],
-            _ => unimplemented!(),
-        }
-    }
-
-    fn wif_prefix(&self) -> u8 {
-        match *self {
-            Networks::Bitcoin => 128,
-            Networks::Testnet | Networks::Regtest => 239,
-            _ => unimplemented!(),
-        }
-    }
-
-    fn magic(&self) -> u32 {
-        match *self {
-            // https://github.com/bitcoin/bitcoin/blob/ce650182f4d9847423202789856e6e5f499151f8/src/chainparams.cpp#L115
-            Networks::Bitcoin => 0xD9B4BEF9,
-            Networks::Testnet => 0x0709110B,
-            Networks::Regtest => 0xDAB5BFFA,
-
-            // https://github.com/litecoin-project/litecoin/blob/42dddc2f9ef5bdc8369a3c7552e70b974b9d1764/src/chainparams.cpp#L114
-            Networks::Litecoin => 0xDBB6C0FB,
-            Networks::LitecoinTestnet => 0xF1C8D2FD,
-
-            // https://github.com/vertcoin-project/vertcoin-core/blob/3b3701e7a76d4fe6d2d7459b6f39a9570ca65b19/src/chainparams.cpp#L114
-            Networks::Vertcoin => 0xDAB5BFFA,
-            Networks::VertcoinTestnet => 0x74726576,
-        }
-    }
-
-    /// Constructs a network from magic bytes if possible
-    fn from_magic(magic: u32) -> Result<Networks, Error> {
-        Networks::find_net_with_property(|n| n.magic() == magic)
-    }
-
-    fn name(&self) -> &'static str {
-        match *self {
-            Networks::Bitcoin => "bitcoin",
-            Networks::Testnet => "testnet",
-            Networks::Regtest => "regtest",
-            Networks::Litecoin => "litecoin",
-            Networks::LitecoinTestnet => "litecoin-testnet",
-            Networks::Vertcoin => "vertcoin",
-            Networks::VertcoinTestnet => "vertcoin-testnet",
-        }
-    }
-
-    fn from_name(name: &str) -> Result<Self, Error> {
-        Networks::find_net_with_property(|n| n.name() == name)
-    }
-
-    fn network_type(&self) -> NetworkType {
-        match *self {
-            Networks::Bitcoin => NetworkType::Mainnet,
-            Networks::Testnet => NetworkType::Testnet,
-            Networks::Regtest => NetworkType::Regtest,
-            Networks::Litecoin => NetworkType::Mainnet,
-            Networks::LitecoinTestnet => NetworkType::Testnet,
-            Networks::Vertcoin => NetworkType::Mainnet,
-            Networks::VertcoinTestnet => NetworkType::Testnet,
-        }
-    }
-
-    fn chain_params(&self) -> ChainParams<Self> {
-        match *self {
-            Networks::Bitcoin => ChainParams {
-                network: Networks::Bitcoin,
-                bip16_time: 1333238400,                 // Apr 1 2012
-                bip34_height: 227931, // 000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8
-                bip65_height: 388381, // 000000000000000004c2b624ed5d7756c508d90fd0da2c7c679febfa6c4735f0
-                bip66_height: 363725, // 00000000000000000379eaa19dce8c9b722d46ae6a57c2f1a988119488b50931
-                rule_change_activation_threshold: 1916, // 95%
-                miner_confirmation_window: 2016,
-                pow_limit: [
-                    0xffffffffffffffffu64,
-                    0xffffffffffffffffu64,
-                    0xffffffffffffffffu64,
-                    0x00000000ffffffffu64,
-                ],
-                pow_target_spacing: 10 * 60,            // 10 minutes.
-                pow_target_timespan: 14 * 24 * 60 * 60, // 2 weeks.
-                allow_min_difficulty_blocks: false,
-                no_pow_retargeting: false,
-            },
-            Networks::Testnet => ChainParams {
-                network: Networks::Testnet,
-                bip16_time: 1333238400,                 // Apr 1 2012
-                bip34_height: 21111, // 0000000023b3a96d3484e5abb3755c413e7d41500f8e2a5c3f0dd01299cd8ef8
-                bip65_height: 581885, // 00000000007f6655f22f98e72ed80d8b06dc761d5da09df0fa1dc4be4f861eb6
-                bip66_height: 330776, // 000000002104c8c45e99a8853285a3b592602a3ccde2b832481da85e9e4ba182
-                rule_change_activation_threshold: 1512, // 75%
-                miner_confirmation_window: 2016,
-                pow_limit: [
-                    0xffffffffffffffffu64,
-                    0xffffffffffffffffu64,
-                    0xffffffffffffffffu64,
-                    0x00000000ffffffffu64,
-                ],
-                pow_target_spacing: 10 * 60,            // 10 minutes.
-                pow_target_timespan: 14 * 24 * 60 * 60, // 2 weeks.
-                allow_min_difficulty_blocks: true,
-                no_pow_retargeting: false,
-            },
-            Networks::Regtest => ChainParams {
-                network: Networks::Regtest,
-                bip16_time: 1333238400,  // Apr 1 2012
-                bip34_height: 100000000, // not activated on regtest
-                bip65_height: 1351,
-                bip66_height: 1251,                    // used only in rpc tests
-                rule_change_activation_threshold: 108, // 75%
-                miner_confirmation_window: 144,
-                pow_limit: [
-                    0xffffffffffffffffu64,
-                    0xffffffffffffffffu64,
-                    0xffffffffffffffffu64,
-                    0x7fffffffffffffffu64,
-                ],
-                pow_target_spacing: 10 * 60,            // 10 minutes.
-                pow_target_timespan: 14 * 24 * 60 * 60, // 2 weeks.
-                allow_min_difficulty_blocks: true,
-                no_pow_retargeting: true,
-            },
-            _ => unimplemented!(),
-        }
-    }
-
-    fn genesis_block(&self) -> Sha256dHash {
-        use bitcoin_hashes::hex::FromHex;
-
-        match *self {
-            Networks::Bitcoin => Sha256dHash::from_hex(
-                "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
-            ).unwrap(),
-
-            Networks::Testnet => Sha256dHash::from_hex(
-                "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
-            ).unwrap(),
-
-            Networks::Regtest => Sha256dHash::from_hex(
-                "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
-            ).unwrap(),
-
-            _ => unimplemented!(),
-        }
-    }
-}
-
-impl BitcoinNetworks {
-    /// Maps the `BitcoinNetwork` variant to a `Networks` variant
-    pub fn to_networks(&self) -> Networks {
-        match *self {
-            BitcoinNetworks::Bitcoin => Networks::Bitcoin,
-            BitcoinNetworks::Testnet => Networks::Testnet,
-            BitcoinNetworks::Regtest => Networks::Regtest,
-        }
-    }
-
-    /// Maps a `Networks` variant to a `BitcoinNetworks` variant if possible.
-    pub fn from_networks(n: Networks) -> Result<BitcoinNetworks, Error> {
-        match n {
-            Networks::Bitcoin => Ok(BitcoinNetworks::Bitcoin),
-            Networks::Testnet => Ok(BitcoinNetworks::Testnet),
-            Networks::Regtest => Ok(BitcoinNetworks::Regtest),
-            _ => Err(Error::UnknownNetwork),
-        }
-    }
-}
-
-impl NetworkConstants for BitcoinNetworks {
-    fn hrp(&self) -> &'static str {
-        self.to_networks().hrp()
-    }
-
-    fn from_hrp(hrp: &str) -> Result<Self, Error> {
-        Networks::from_hrp(hrp).and_then(Self::from_networks)
-    }
-
-    fn p2pk_prefix(&self) -> u8 {
-        self.to_networks().p2pk_prefix()
-    }
-
-    fn p2pkh_prefix(&self) -> u8 {
-        self.to_networks().p2pkh_prefix()
-    }
-
-    fn p2sh_prefix(&self) -> u8 {
-        self.to_networks().p2sh_prefix()
-    }
-
-    fn xpub_prefix(&self) -> &'static [u8; 4] {
-        self.to_networks().xpub_prefix()
-    }
-
-    fn xpriv_prefix(&self) -> &'static [u8; 4] {
-        self.to_networks().xpriv_prefix()
-    }
-
-    fn wif_prefix(&self) -> u8 {
-        self.to_networks().wif_prefix()
-    }
-
-    fn magic(&self) -> u32 {
-        self.to_networks().magic()
-    }
-
-    fn from_magic(magic: u32) -> Result<Self, Error> {
-        Networks::from_magic(magic).and_then(Self::from_networks)
-    }
-
-    fn name(&self) -> &'static str {
-        self.to_networks().name()
-    }
-
-    fn from_name(name: &str) -> Result<Self, Error> {
-        Networks::from_name(name).and_then(Self::from_networks)
-    }
-
-    fn network_type(&self) -> NetworkType {
-        self.to_networks().network_type()
-    }
-
-    fn chain_params(&self) -> ChainParams<Self> {
-        self.to_networks()
-            .chain_params()
-            .map_network(&Self::from_networks)
-            .expect("function can only be called for variants of BitcoinNetworks")
-    }
-
-    fn genesis_block(&self) -> Sha256dHash {
-        self.to_networks().genesis_block()
-    }
-}
-
-impl fmt::Debug for Networks {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{}", self.name())
-    }
-}
-
-#[cfg(feature = "serde-support")]
-impl serde::Deserialize for Networks {
-    #[inline]
-    fn deserialize<D>(d: &mut D) -> Result<Networks, D::Error>
-        where D: serde::Deserializer
-    {
-        struct Visitor;
-        impl serde::de::Visitor for Visitor {
-            type Value = Networks;
-
-            fn visit_string<E>(&mut self, v: String) -> Result<Networks, E>
-                where E: serde::de::Error
-            {
-                self.visit_str(&v)
-            }
-
-            fn visit_str<E>(&mut self, s: &str) -> Result<Networks, E>
-                where E: serde::de::Error
-            {
-                match Networks::from_name(s) {
-                    Ok(network) => Ok(network),
-                    Err(Error::UnknownNetwork) => Err(serde::de::Error::syntax("Network")),
-                }
-            }
-        }
-
-        d.visit(Visitor)
-    }
-}
-
-#[cfg(feature = "serde-support")]
-impl serde::Serialize for Networks {
-    fn serialize<S>(&self, s: &mut S) -> Result<(), S::Error>
-        where S: ::serde::Serializer
-    {
-        s.visit_str(self.name())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use {Networks, Error, NetworkConstants};
+    use ::{Network};
 
-    #[test]
-    fn hrp_conversion() {
-        assert_eq!(Networks::Bitcoin.hrp(), "bc");
-        assert_eq!(Networks::from_hrp("tvtc"), Ok(Networks::VertcoinTestnet));
-        assert_eq!(Networks::from_hrp("test"), Err(Error::UnknownNetwork));
+    fn all_networks() -> Vec<Network> {
+        vec![Network::bitcoin(), Network::bitcoin_testnet(), Network::bitcoin_regtest()]
     }
 
     #[test]
-    fn magic_conversion() {
-        assert_eq!(Networks::Bitcoin.magic(), 0xD9B4BEF9);
-        assert_eq!(Networks::from_magic(0xD9B4BEF9), Ok(Networks::Bitcoin));
-        assert_eq!(Networks::from_magic(0xABCDEF01), Err(Error::UnknownNetwork));
-    }
-
-    #[test]
-    fn enum_name_conversion() {
-        assert_eq!(Networks::Bitcoin.name(), "bitcoin".to_string());
-        assert_eq!(Networks::from_name("testnet"), Ok(Networks::Testnet));
-        assert_eq!(Networks::from_name("foobar"), Err(Error::UnknownNetwork));
-    }
-
-    #[cfg(feature = "serde-support")]
-    #[test]
-    fn test_serde() {
-        let from = vec![Networks::Bitcoin, Networks::LitecoinTestnet, Networks::Vertcoin];
-        let enc = ::serde_json::to_string(&from).unwrap();
-        assert!(enc.contains("bitcoin"));
-        assert!(enc.contains("litecoin-testnet"));
-        assert!(enc.contains("vertcoin"));
-        assert_eq!(::serde_json::from_str::<Vec<Networks>>(&enc).unwrap(), from);
-    }
-
-    #[test]
-    fn bitcoin_networks_dont_panic() {
-        use BitcoinNetworks;
-
-        for &n in ::BITCOIN_NETWORKS {
-            let hrp = n.hrp();
-            assert_eq!(n, BitcoinNetworks::from_hrp(hrp).unwrap());
-
-            let _ = n.p2pk_prefix();
-            let _ = n.p2pkh_prefix();
-            let _ = n.p2sh_prefix();
-            let _ = n.xpub_prefix();
-            let _ = n.xpriv_prefix();
-            let _ = n.wif_prefix();
-
-            let magic = n.magic();
-            assert_eq!(n, BitcoinNetworks::from_magic(magic).unwrap());
-
-            let name = n.name();
-            assert_eq!(n, BitcoinNetworks::from_name(name).unwrap());
-
-            let _ = n.network_type();
-            let _ = n.chain_params();
-            let _ = n.genesis_block();
+    fn debug() {
+        for n in all_networks() {
+            assert!(format!("{:?}", n).contains(n.name()));
         }
     }
 }
