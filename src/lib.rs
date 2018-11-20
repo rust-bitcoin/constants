@@ -201,4 +201,23 @@ mod tests {
             assert!(format!("{:?}", n).contains(n.name()));
         }
     }
+
+    #[test]
+    fn dont_panic() {
+        for n in all_networks() {
+            let _ = n.hrp();
+            let _ = n.p2pk_prefix();
+            let _ = n.p2pkh_prefix();
+            let _ = n.p2sh_prefix();
+            let _ = n.xpub_prefix();
+            let _ = n.xpriv_prefix();
+            let _ = n.wif_prefix();
+            let _ = n.magic();
+            let _ = n.name();
+            let _ = n.network_type();
+            let _ = n.chain_params();
+            let _ = n.genesis_block();
+            let _ = n.clone_boxed();
+        }
+    }
 }
