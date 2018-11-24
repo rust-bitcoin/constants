@@ -156,7 +156,7 @@ impl NetworkConstants for BitcoinTestnet {
     }
 
     fn name(&self) -> &'static str {
-        "testnet"
+        "bitcoin-testnet"
     }
 
     fn network_type(&self) -> NetworkType {
@@ -231,7 +231,7 @@ impl NetworkConstants for BitcoinRegtest {
     }
 
     fn name(&self) -> &'static str {
-        "regtest"
+        "bitcoin-regtest"
     }
 
     fn network_type(&self) -> NetworkType {
