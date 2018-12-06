@@ -73,6 +73,14 @@ impl Network {
     }
 }
 
+impl PartialEq for Network {
+    fn eq(&self, other: &Network) -> bool {
+        self.name() == other.name()
+    }
+}
+
+impl Eq for Network {}
+
 impl Clone for Network {
     fn clone(&self) -> Self {
         Self::from_box(self.0.clone_boxed())
@@ -219,5 +227,16 @@ mod tests {
             let _ = n.genesis_block();
             let _ = n.clone_boxed();
         }
+    }
+
+    #[test]
+    fn equality() {
+        assert_eq!(Network::bitcoin(), Network::bitcoin());
+        assert_eq!(Network::bitcoin_testnet(), Network::bitcoin_testnet());
+        assert_eq!(Network::bitcoin_regtest(), Network::bitcoin_regtest());
+
+        assert_ne!(Network::bitcoin(), Network::bitcoin_testnet());
+        assert_ne!(Network::bitcoin(), Network::bitcoin_regtest());
+        assert_ne!(Network::bitcoin_testnet(), Network::bitcoin_regtest());
     }
 }
