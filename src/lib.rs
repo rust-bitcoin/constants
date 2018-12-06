@@ -44,6 +44,9 @@ extern crate bitcoin_hashes;
 
 use bitcoin_hashes::sha256d::Sha256dHash;
 use std::{fmt, ops};
+use std::cmp::Ordering;
+use std::hash::Hash;
+use std::hash::Hasher;
 
 pub mod networks;
 
@@ -79,7 +82,25 @@ impl PartialEq for Network {
     }
 }
 
+impl PartialOrd for Network {
+    fn partial_cmp(&self, other: &Network) -> Option<Ordering> {
+        self.name().partial_cmp(other.name())
+    }
+}
+
 impl Eq for Network {}
+
+impl Ord for Network {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.name().cmp(other.name())
+    }
+}
+
+impl Hash for Network {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name().hash(state)
+    }
+}
 
 impl Clone for Network {
     fn clone(&self) -> Self {
