@@ -47,6 +47,7 @@ use std::{fmt, ops};
 use std::cmp::Ordering;
 use std::hash::Hash;
 use std::hash::Hasher;
+use std::iter::{Chain, Once, once};
 
 pub mod networks;
 
@@ -222,9 +223,40 @@ pub struct ChainParams {
     pub no_pow_retargeting: bool,
 }
 
+/// Defines a set of supported networks and allows to search this set using a predicate.
+pub trait SupportedNetworks {
+    /// The iterator type that `networks_iter` returns. For compatibility reasons we can't use
+    /// `impl Trait` yet, so we have to define this iterator type manually. For an example have a
+    /// look at `BitcoinNetworkFinder`.
+    type NetworksIter: Iterator<Item = Network>;
+
+    /// Returns an iterator over the set of supported networks
+    fn networks_iter() -> Self::NetworksIter;
+}
+
+/// Implements `SupportedNetworks` for bitcoin mainnet, testnet and regtest. Testnet has precedence
+/// over regtest.
+pub struct BitcoinNetworks {}
+
+impl SupportedNetworks for BitcoinNetworks {
+    type NetworksIter = Chain<Chain<Once<Network>, Once<Network>>, Once<Network>>;
+
+    fn networks_iter() -> Self::NetworksIter {
+        // Ugly hack due to `into_iter` not really being implemented for `[T; n]`. The other workarounds
+        // I'm aware of are:
+        //  * using a `Vec` or
+        //  * using `iter()` and clone the found network at the end
+        //
+        // Related issue: https://github.com/rust-lang/rust/issues/25725#issuecomment-234446924
+        once(Network::bitcoin())
+            .chain(once(Network::bitcoin_testnet()))
+            .chain(once(Network::bitcoin_regtest()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use ::{Network};
+    use ::{BitcoinNetworks, Network, SupportedNetworks};
 
     fn all_networks() -> Vec<Network> {
         vec![Network::bitcoin(), Network::bitcoin_testnet(), Network::bitcoin_regtest()]
@@ -265,5 +297,24 @@ mod tests {
         assert_ne!(Network::bitcoin(), Network::bitcoin_testnet());
         assert_ne!(Network::bitcoin(), Network::bitcoin_regtest());
         assert_ne!(Network::bitcoin_testnet(), Network::bitcoin_regtest());
+    }
+
+    #[test]
+    fn bitcoin_networks_precedence() {
+        let testnet_idx = BitcoinNetworks::networks_iter()
+            .enumerate()
+            .find(|&(_, ref network)| network.name() == "bitcoin-testnet")
+            .map(|(idx, _)| idx)
+            .unwrap();
+
+        let regtest_idx = BitcoinNetworks::networks_iter()
+            .enumerate()
+            .find(|&(_, ref network)| network.name() == "bitcoin-regtest")
+            .map(|(idx, _)| idx)
+            .unwrap();
+
+        // Make sure that testnet gets found before regtest in cases where they have identical
+        // attributes.
+        assert!(regtest_idx > testnet_idx);
     }
 }
