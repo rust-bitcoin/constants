@@ -108,6 +108,12 @@ impl Clone for Network {
     }
 }
 
+impl fmt::Display for Network {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.write_str(self.name())
+    }
+}
+
 impl ops::Deref for Network {
     type Target = Box<NetworkConstants>;
 
