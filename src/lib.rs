@@ -223,6 +223,13 @@ pub struct ChainParams {
     pub no_pow_retargeting: bool,
 }
 
+impl ChainParams {
+    /// Calculates the number of blocks between difficulty adjustments.
+    pub fn difficulty_adjustment_interval(&self) -> u64 {
+        self.pow_target_timespan / self.pow_target_spacing
+    }
+}
+
 /// Defines a set of supported networks and allows to search this set using a predicate.
 pub trait SupportedNetworks {
     /// The iterator type that `networks_iter` returns. For compatibility reasons we can't use
