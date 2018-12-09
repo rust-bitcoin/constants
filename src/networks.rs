@@ -10,7 +10,7 @@
 
 use ::{ChainParams, NetworkConstants, NetworkType};
 use bitcoin_hashes::hex::FromHex;
-use bitcoin_hashes::sha256d::Sha256dHash;
+use bitcoin_hashes::sha256d;
 
 /// Represents the Bitcoin Mainnet
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -109,8 +109,8 @@ impl NetworkConstants for Bitcoin {
         }
     }
 
-    fn genesis_block(&self) -> Sha256dHash {
-        Sha256dHash::from_hex(
+    fn genesis_block(&self) -> sha256d::Hash {
+        sha256d::Hash::from_hex(
             "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
         ).expect("static hex string, tested")
     }
@@ -184,8 +184,8 @@ impl NetworkConstants for BitcoinTestnet {
         }
     }
 
-    fn genesis_block(&self) -> Sha256dHash {
-        Sha256dHash::from_hex(
+    fn genesis_block(&self) -> sha256d::Hash {
+        sha256d::Hash::from_hex(
             "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
         ).expect("static hex string, tested")
     }
@@ -259,8 +259,8 @@ impl NetworkConstants for BitcoinRegtest {
         }
     }
 
-    fn genesis_block(&self) -> Sha256dHash {
-        Sha256dHash::from_hex(
+    fn genesis_block(&self) -> sha256d::Hash {
+        sha256d::Hash::from_hex(
             "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
         ).expect("static hex string, tested")
     }
