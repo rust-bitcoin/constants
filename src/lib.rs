@@ -42,11 +42,9 @@
 
 extern crate bitcoin_hashes;
 
-use bitcoin_hashes::sha256d::Sha256dHash;
+use bitcoin_hashes::sha256d;
 use std::{fmt, ops};
 use std::cmp::Ordering;
-use std::hash::Hash;
-use std::hash::Hasher;
 use std::iter::{Chain, Once, once};
 
 pub mod networks;
@@ -97,8 +95,8 @@ impl Ord for Network {
     }
 }
 
-impl Hash for Network {
-    fn hash<H: Hasher>(&self, state: &mut H) {
+impl std::hash::Hash for Network {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.name().hash(state)
     }
 }
@@ -165,7 +163,7 @@ pub trait NetworkConstants {
     fn chain_params(&self) -> ChainParams;
 
     /// Returns the hash of the genesis block
-    fn genesis_block(&self) -> Sha256dHash;
+    fn genesis_block(&self) -> sha256d::Hash;
 
     /// Creates a boxed copy of `self`
     fn clone_boxed(&self) -> Box<NetworkConstants>;
@@ -310,13 +308,13 @@ mod tests {
     fn bitcoin_networks_precedence() {
         let testnet_idx = BitcoinNetworks::networks_iter()
             .enumerate()
-            .find(|(_, network)| network.name() == "bitcoin-testnet")
+            .find(|&(_, ref network)| network.name() == "bitcoin-testnet")
             .map(|(idx, _)| idx)
             .unwrap();
 
         let regtest_idx = BitcoinNetworks::networks_iter()
             .enumerate()
-            .find(|(_, network)| network.name() == "bitcoin-regtest")
+            .find(|&(_, ref network)| network.name() == "bitcoin-regtest")
             .map(|(idx, _)| idx)
             .unwrap();
 
