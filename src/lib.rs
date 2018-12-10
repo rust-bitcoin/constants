@@ -42,7 +42,7 @@
 
 extern crate bitcoin_hashes;
 
-use bitcoin_hashes::sha256d::Sha256dHash;
+use bitcoin_hashes::sha256d;
 use std::{fmt, ops};
 
 pub mod networks;
@@ -129,7 +129,7 @@ pub trait NetworkConstants {
     fn chain_params(&self) -> ChainParams;
 
     /// Returns the hash of the genesis block
-    fn genesis_block(&self) -> Sha256dHash;
+    fn genesis_block(&self) -> sha256d::Hash;
 
     /// Creates a boxed copy of `self`
     fn clone_boxed(&self) -> Box<NetworkConstants>;

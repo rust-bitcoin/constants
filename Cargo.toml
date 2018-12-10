@@ -10,4 +10,5 @@ categories = []
 license = "MIT"
 
 [dependencies]
-bitcoin_hashes = {git = "https://github.com/rust-bitcoin/bitcoin_hashes.git"}
+bitcoin_hashes = "0.1"
+
