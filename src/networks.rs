@@ -20,6 +20,10 @@ pub struct Bitcoin {}
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct BitcoinTestnet {}
 
+/// Represents the Bitcoin Signet
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct BitcoinSignet {}
+
 /// Represents the Bitcoin Regtest network
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct BitcoinRegtest {}
@@ -35,6 +39,13 @@ impl BitcoinTestnet {
     /// Create a new `Network` object representing BitcoinTestnet
     pub fn new() -> Box<NetworkConstants> {
         Box::new(BitcoinTestnet {})
+    }
+}
+
+impl BitcoinSignet {
+    /// Create a new `Network` object representing BitcoinSignet
+    pub fn new() -> Box<NetworkConstants> {
+        Box::new(BitcoinSignet {})
     }
 }
 
@@ -187,6 +198,81 @@ impl NetworkConstants for BitcoinTestnet {
     fn genesis_block(&self) -> sha256d::Hash {
         sha256d::Hash::from_hex(
             "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
+        ).expect("static hex string, tested")
+    }
+
+    fn clone_boxed(&self) -> Box<NetworkConstants> {
+        Self::new()
+    }
+}
+
+impl NetworkConstants for BitcoinSignet {
+    fn hrp(&self) -> &'static str {
+        "tb"
+    }
+
+    fn p2pk_prefix(&self) -> u8 {
+        111
+    }
+
+    fn p2pkh_prefix(&self) -> u8 {
+        111
+    }
+
+    fn p2sh_prefix(&self) -> u8 {
+        196
+    }
+
+    fn xpub_prefix(&self) -> &'static [u8; 4] {
+        static PREFIX: [u8; 4] = [0x04u8, 0x35, 0x87, 0xCF];
+        &PREFIX
+    }
+
+    fn xpriv_prefix(&self) -> &'static [u8; 4] {
+        static PREFIX: [u8; 4] = [0x04, 0x35, 0x83, 0x94];
+        &PREFIX
+    }
+
+    fn wif_prefix(&self) -> u8 {
+        239
+    }
+
+    fn magic(&self) -> u32 {
+        0x40CF030A
+    }
+
+    fn name(&self) -> &'static str {
+        "bitcoin-signet"
+    }
+
+    fn network_type(&self) -> NetworkType {
+        NetworkType::Signet
+    }
+
+    fn chain_params(&self) -> ChainParams {
+        ChainParams {
+            bip16_time: 1333238400,                 // Apr 1 2012
+            bip34_height: 1,
+            bip65_height: 1,
+            bip66_height: 1,
+            rule_change_activation_threshold: 1916, // 95%
+            miner_confirmation_window: 2016,
+            pow_limit: [
+                0x0000000000000000u64,
+                0x0000000000000000u64,
+                0x0000000000000000u64,
+                0x00000377ae000000u64,
+            ],
+            pow_target_spacing: 10 * 60,            // 10 minutes.
+            pow_target_timespan: 14 * 24 * 60 * 60, // 2 weeks.
+            allow_min_difficulty_blocks: false,
+            no_pow_retargeting: false,
+        }
+    }
+
+    fn genesis_block(&self) -> sha256d::Hash {
+        sha256d::Hash::from_hex(
+            "00000086d6b2636cb2a392d45edc4ec544a10024d30141c9adf4bfd9de533b53"
         ).expect("static hex string, tested")
     }
 

@@ -67,6 +67,11 @@ impl Network {
         Self::from_box(networks::BitcoinTestnet::new())
     }
 
+    /// Creates a `Network` object representing the bitcoin signet
+    pub fn bitcoin_signet() -> Network {
+        Self::from_box(networks::BitcoinSignet::new())
+    }
+
     /// Creates a `Network` object representing the bitcoin regtest
     pub fn bitcoin_regtest() -> Network {
         Self::from_box(networks::BitcoinRegtest::new())
@@ -144,6 +149,9 @@ pub enum NetworkType {
     /// Public network without real economic activity, for testing purposes only
     Testnet,
 
+    /// Testnet-like network with an added signature to block verification
+    Signet,
+
     /// Private testnet, typically created and controlled by a single actor
     Regtest,
 }
@@ -192,7 +200,7 @@ mod tests {
     use ::{Network};
 
     fn all_networks() -> Vec<Network> {
-        vec![Network::bitcoin(), Network::bitcoin_testnet(), Network::bitcoin_regtest()]
+        vec![Network::bitcoin(), Network::bitcoin_testnet(), Network::bitcoin_signet(), Network::bitcoin_regtest()]
     }
 
     #[test]
