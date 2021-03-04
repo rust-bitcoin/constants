@@ -2,7 +2,7 @@
 name = "bitcoin-constants"
 version = "0.1.0"
 authors = ["The rust-bitcoin developers"]
-repository = "https://github.com/rust-bitcoin/bitcoin-constants"
+repository = "https://github.com/rust-bitcoin/constants"
 description = "Contains network constants for bitcoin"
 readme = "README.md"
 keywords = ["bitcoin", "constants", "blockchain"]
